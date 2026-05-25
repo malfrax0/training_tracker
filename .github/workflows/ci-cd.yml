@@ -63,6 +63,15 @@ jobs:
         run: |
           timeout 120 bash -c 'until curl -sf http://localhost/health; do sleep 3; done'
 
+      # Dump logs if the health check (or anything above) fails — makes backend
+      # crash reasons visible without having to ssh into the runner.
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Run database migrations
+        run: docker compose exec -T app node /app/backend/dist/migrations/migrate.js
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
