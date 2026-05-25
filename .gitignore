@@ -1,0 +1,9 @@
+node_modules/
+dist/
+
+# Cypress credentials (contains passwords)
+apps/e2e/cypress.env.json
+.env
+*.local
+.DS_Store
+*.log
