@@ -29,7 +29,14 @@ RUN pnpm --filter backend --prod deploy --legacy /prod/backend
 # ─── Final image ──────────────────────────────────────────────────────────────
 FROM node:20-alpine AS final
 
-RUN apk add --no-cache nginx supervisor
+RUN apk add --no-cache nginx supervisor openssl
+
+RUN mkdir -p /etc/nginx/ssl && \
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+      -keyout /etc/nginx/ssl/server.key \
+      -out /etc/nginx/ssl/server.crt \
+      -subj "/CN=localhost" \
+      -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 
 COPY --from=build /prod/backend /app/backend
 COPY --from=build /app/apps/backend/dist /app/backend/dist
@@ -38,6 +45,6 @@ COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY supervisord.conf /etc/supervisord.conf
 
-EXPOSE 80
+EXPOSE 80 443
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
