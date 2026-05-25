@@ -29,6 +29,7 @@ services:
       AUTH0_DOMAIN: ${AUTH0_DOMAIN}
       AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      SSL_DOMAIN: ${SSL_DOMAIN:-localhost}
       NODE_ENV: production
       PORT: 3000
     depends_on:
