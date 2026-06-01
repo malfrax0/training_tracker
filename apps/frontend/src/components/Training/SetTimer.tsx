@@ -57,7 +57,8 @@ function playDoneBeep() {
 }
 
 export function SetTimer({ secondsLeft, totalSeconds, onSkip, onAddExtraSet, nextExercise }: Props) {
-  const progress = ((totalSeconds - secondsLeft) / totalSeconds) * 100;
+  const safeTotalSeconds = totalSeconds > 0 ? totalSeconds : 1;
+  const progress = Math.min(100, Math.max(0, ((safeTotalSeconds - secondsLeft) / safeTotalSeconds) * 100));
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = secondsLeft % 60;
 
