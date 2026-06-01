@@ -15,8 +15,10 @@ export interface Exercise {
   description: string | null;
   nbSeries: number;
   defaultWeightKg: number;
+  defaultReps: number;
   restTimerSeconds: number;
   sortOrder: number;
+  imageData: string | null;
 }
 
 export interface WorkoutLog {
@@ -35,6 +37,7 @@ export interface WorkoutSetLog {
   exerciseName: string | null;
   setNumber: number;
   weightKg: number | null;
+  reps: number | null;
   doneAt: string;
 }
 

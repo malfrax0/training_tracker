@@ -22,10 +22,10 @@ export function useWorkoutsApi() {
       apiFetch<{ success: boolean }>(`/api/workouts/${id}/complete`, { method: 'PUT' }),
     finishWorkout: (id: string) =>
       apiFetch<{ success: boolean }>(`/api/workouts/${id}/finish`, { method: 'PUT' }),
-    logSet: (workoutId: string, exerciseId: string, setNumber: number, weightKg: number) =>
+    logSet: (workoutId: string, exerciseId: string, setNumber: number, weightKg: number, reps: number) =>
       apiFetch<WorkoutSetLog>(`/api/workouts/${workoutId}/sets`, {
         method: 'POST',
-        body: JSON.stringify({ exerciseId, setNumber, weightKg }),
+        body: JSON.stringify({ exerciseId, setNumber, weightKg, reps }),
       }),
   };
 }

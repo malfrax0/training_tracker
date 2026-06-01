@@ -6,9 +6,12 @@ interface WorkoutState {
   workoutId: string | null;
   currentExerciseIndex: number;
   currentSetNumber: number;
+  currentExerciseTotalSets: number; // effective total (nbSeries + extra sets added)
   isResting: boolean;
   restSecondsLeft: number;
   isFinished: boolean;
+  setsCompleted: number;
+  totalSets: number; // sum across all exercises + extras
   error: string | null;
 }
 
@@ -16,9 +19,12 @@ const initialState: WorkoutState = {
   workoutId: null,
   currentExerciseIndex: 0,
   currentSetNumber: 1,
+  currentExerciseTotalSets: 0,
   isResting: false,
   restSecondsLeft: 0,
   isFinished: false,
+  setsCompleted: 0,
+  totalSets: 0,
   error: null,
 };
 
@@ -51,7 +57,13 @@ export function useWorkout(session: Session | null) {
     if (!session) return;
     try {
       const workout = await api.startWorkout(session.id);
-      setState({ ...initialState, workoutId: workout.id });
+      const total = session.exercises.reduce((sum, ex) => sum + ex.nbSeries, 0);
+      setState({
+        ...initialState,
+        workoutId: workout.id,
+        currentExerciseTotalSets: session.exercises[0]?.nbSeries ?? 0,
+        totalSets: total,
+      });
     } catch (err) {
       setState((prev) => ({
         ...prev,
@@ -61,28 +73,31 @@ export function useWorkout(session: Session | null) {
   }, [session]);
 
   const completeSet = useCallback(
-    async (weightKg: number) => {
+    async (weightKg: number, reps: number) => {
       if (!state.workoutId || !currentExercise || !session) return;
 
       try {
-        await api.logSet(state.workoutId, currentExercise.id, state.currentSetNumber, weightKg);
+        await api.logSet(state.workoutId, currentExercise.id, state.currentSetNumber, weightKg, reps);
 
-        const isLastSet = state.currentSetNumber >= currentExercise.nbSeries;
+        const isLastSet = state.currentSetNumber >= state.currentExerciseTotalSets;
         const isLastExercise = state.currentExerciseIndex >= session.exercises.length - 1;
 
         if (isLastSet && isLastExercise) {
           await api.completeWorkout(state.workoutId);
-          setState((prev) => ({ ...prev, isFinished: true }));
+          setState((prev) => ({ ...prev, isFinished: true, setsCompleted: prev.setsCompleted + 1 }));
           return;
         }
 
         if (isLastSet) {
+          const nextIndex = state.currentExerciseIndex + 1;
           setState((prev) => ({
             ...prev,
-            currentExerciseIndex: prev.currentExerciseIndex + 1,
+            currentExerciseIndex: nextIndex,
             currentSetNumber: 1,
+            currentExerciseTotalSets: session.exercises[nextIndex].nbSeries,
             isResting: true,
             restSecondsLeft: currentExercise.restTimerSeconds,
+            setsCompleted: prev.setsCompleted + 1,
           }));
         } else {
           setState((prev) => ({
@@ -90,6 +105,7 @@ export function useWorkout(session: Session | null) {
             currentSetNumber: prev.currentSetNumber + 1,
             isResting: true,
             restSecondsLeft: currentExercise.restTimerSeconds,
+            setsCompleted: prev.setsCompleted + 1,
           }));
         }
       } catch (err) {
@@ -101,6 +117,14 @@ export function useWorkout(session: Session | null) {
     },
     [state, currentExercise, session]
   );
+
+  const addExtraSet = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      currentExerciseTotalSets: prev.currentExerciseTotalSets + 1,
+      totalSets: prev.totalSets + 1,
+    }));
+  }, []);
 
   const skipRest = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -125,6 +149,7 @@ export function useWorkout(session: Session | null) {
     currentExercise,
     startWorkout,
     completeSet,
+    addExtraSet,
     skipRest,
     stopWorkout,
   };
