@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -20,6 +20,11 @@ interface Props {
 export function ExerciseStep({ exercise, setNumber, totalSets, onSetDone }: Props) {
   const [weight, setWeight] = useState(exercise.defaultWeightKg);
   const [reps, setReps] = useState(exercise.defaultReps);
+
+  useEffect(() => {
+    setWeight(exercise.defaultWeightKg);
+    setReps(exercise.defaultReps);
+  }, [exercise.id]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, px: 2 }}>
