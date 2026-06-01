@@ -15,17 +15,25 @@ interface Props {
 function playWarningBeep() {
   try {
     const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'triangle';
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.35, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.35);
-    osc.onended = () => ctx.close();
+    const schedule = [
+      { freq: 440,  start: 0.00 }, // A4
+      { freq: 494,  start: 0.14 }, // B4
+      { freq: 440,  start: 0.28 }, // A4
+      { freq: 392,  start: 0.42 }, // G4  ← tension drop
+    ];
+    schedule.forEach(({ freq, start }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + 0.12);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + 0.12);
+    });
+    setTimeout(() => ctx.close(), 700);
   } catch {
     // AudioContext not available (e.g. SSR or restricted)
   }
@@ -35,8 +43,14 @@ function playDoneBeep() {
   try {
     const ctx = new AudioContext();
     const schedule = [
-      { freq: 523, start: 0 },
-      { freq: 784, start: 0.22 },
+      { freq: 523,  start: 0.00 }, // C5
+      { freq: 659,  start: 0.14 }, // E5
+      { freq: 784,  start: 0.28 }, // G5
+      { freq: 1047, start: 0.42 }, // C6
+      { freq: 880,  start: 0.58 }, // A5
+      { freq: 784,  start: 0.72 }, // G5
+      { freq: 659,  start: 0.86 }, // E5
+      { freq: 1047, start: 1.00 }, // C6  ← bright finish
     ];
     schedule.forEach(({ freq, start }) => {
       const osc = ctx.createOscillator();
@@ -50,7 +64,7 @@ function playDoneBeep() {
       osc.start(ctx.currentTime + start);
       osc.stop(ctx.currentTime + start + 0.25);
     });
-    setTimeout(() => ctx.close(), 600);
+    setTimeout(() => ctx.close(), 1500);
   } catch {
     // ignore
   }
@@ -70,7 +84,7 @@ export function SetTimer({ secondsLeft, totalSeconds, onSkip, /*onAddExtraSet,*/
       warned10Ref.current = true;
       playWarningBeep();
     }
-    if (secondsLeft === 0 && !warnedDoneRef.current) {
+    if (secondsLeft <= 1 && !warnedDoneRef.current) {
       warnedDoneRef.current = true;
       playDoneBeep();
     }
