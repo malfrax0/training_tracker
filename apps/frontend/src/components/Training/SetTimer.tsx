@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Box, Typography, CircularProgress, Button, Paper, Chip } from '@mui/material';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
-import AddIcon from '@mui/icons-material/Add';
+// import AddIcon from '@mui/icons-material/Add';
 import { Exercise } from '../../types';
 
 interface Props {
@@ -56,7 +56,7 @@ function playDoneBeep() {
   }
 }
 
-export function SetTimer({ secondsLeft, totalSeconds, onSkip, onAddExtraSet, nextExercise }: Props) {
+export function SetTimer({ secondsLeft, totalSeconds, onSkip, /*onAddExtraSet,*/ nextExercise }: Props) {
   const safeTotalSeconds = totalSeconds > 0 ? totalSeconds : 1;
   const progress = Math.min(100, Math.max(0, ((safeTotalSeconds - secondsLeft) / safeTotalSeconds) * 100));
   const minutes = Math.floor(secondsLeft / 60);
