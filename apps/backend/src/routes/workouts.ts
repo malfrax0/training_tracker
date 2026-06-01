@@ -168,6 +168,9 @@ export async function workoutRoutes(fastify: FastifyInstance) {
     auth,
     async (request, reply) => {
       const { exerciseId, setNumber, weightKg, reps } = request.body;
+      if (reps !== undefined && (!Number.isInteger(reps) || reps < 0)) {
+        return reply.status(400).send({ error: 'Invalid reps' });
+      }
       const client = await fastify.pg.connect();
       try {
         const { rowCount } = await client.query(
