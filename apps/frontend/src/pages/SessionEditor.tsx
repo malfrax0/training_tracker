@@ -85,7 +85,9 @@ export function SessionEditor() {
     description: string;
     nbSeries: number;
     defaultWeightKg: number;
+    defaultReps: number;
     restTimerSeconds: number;
+    imageData: string;
   }) => {
     const sessionId = isNew ? session?.id : id!;
     if (!sessionId) return;
@@ -188,6 +190,7 @@ export function SessionEditor() {
                   <CardActions sx={{ pt: 0 }}>
                     <IconButton
                       size="small"
+                      data-cy="edit-exercise-btn"
                       onClick={() => setExerciseDialog({ open: true, editing: ex })}
                     >
                       <EditIcon fontSize="small" />

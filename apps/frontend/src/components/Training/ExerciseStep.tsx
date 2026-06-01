@@ -14,11 +14,12 @@ interface Props {
   exercise: Exercise;
   setNumber: number;
   totalSets: number;
-  onSetDone: (weightKg: number) => void;
+  onSetDone: (weightKg: number, reps: number) => void;
 }
 
 export function ExerciseStep({ exercise, setNumber, totalSets, onSetDone }: Props) {
   const [weight, setWeight] = useState(exercise.defaultWeightKg);
+  const [reps, setReps] = useState(exercise.defaultReps);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, px: 2 }}>
@@ -26,6 +27,15 @@ export function ExerciseStep({ exercise, setNumber, totalSets, onSetDone }: Prop
         elevation={0}
         sx={{ width: '100%', p: 2, bgcolor: 'background.paper', borderRadius: 3 }}
       >
+        {exercise.imageData && (
+          <Box
+            component="img"
+            src={exercise.imageData}
+            alt={exercise.name}
+            data-cy="exercise-image"
+            sx={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 2, mb: 1.5, display: 'block' }}
+          />
+        )}
         <Typography variant="h5" fontWeight={700} gutterBottom>
           {exercise.name}
         </Typography>
@@ -49,7 +59,18 @@ export function ExerciseStep({ exercise, setNumber, totalSets, onSetDone }: Prop
           value={weight}
           onChange={(e) => setWeight(parseFloat(e.target.value) || 0)}
           inputProps={{ min: 0, step: 0.5, 'data-cy': 'weight-input' }}
-          sx={{ width: 140 }}
+          sx={{ width: 130 }}
+        />
+        <TextField
+          label="Reps"
+          type="number"
+          value={reps}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            setReps(Math.min(20, Math.max(0, isNaN(v) ? 0 : v)));
+          }}
+          inputProps={{ min: 0, max: 20, step: 1, 'data-cy': 'reps-input' }}
+          sx={{ width: 100 }}
         />
       </Box>
 
@@ -59,7 +80,7 @@ export function ExerciseStep({ exercise, setNumber, totalSets, onSetDone }: Prop
         size="large"
         startIcon={<CheckCircleIcon />}
         data-cy="set-done-btn"
-        onClick={() => onSetDone(weight)}
+        onClick={() => onSetDone(weight, reps)}
         sx={{
           width: '100%',
           py: 3,

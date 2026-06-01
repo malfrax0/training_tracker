@@ -12,6 +12,7 @@ interface LogSetBody {
   exerciseId: string;
   setNumber: number;
   weightKg: number;
+  reps?: number;
 }
 
 interface WorkoutListQuery {
@@ -166,7 +167,7 @@ export async function workoutRoutes(fastify: FastifyInstance) {
     '/workouts/:id/sets',
     auth,
     async (request, reply) => {
-      const { exerciseId, setNumber, weightKg } = request.body;
+      const { exerciseId, setNumber, weightKg, reps } = request.body;
       const client = await fastify.pg.connect();
       try {
         const { rowCount } = await client.query(
@@ -176,9 +177,9 @@ export async function workoutRoutes(fastify: FastifyInstance) {
         if (!rowCount) return reply.status(404).send({ error: 'Workout not found' });
 
         const { rows } = await client.query(
-          `INSERT INTO workout_set_logs (workout_log_id, exercise_id, set_number, weight_kg)
-           VALUES ($1, $2, $3, $4) RETURNING id, exercise_id, set_number, weight_kg, done_at`,
-          [request.params.id, exerciseId, setNumber, weightKg]
+          `INSERT INTO workout_set_logs (workout_log_id, exercise_id, set_number, weight_kg, reps)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id, exercise_id, set_number, weight_kg, reps, done_at`,
+          [request.params.id, exerciseId, setNumber, weightKg, reps ?? null]
         );
         const s = rows[0];
         return reply.status(201).send({
@@ -186,6 +187,7 @@ export async function workoutRoutes(fastify: FastifyInstance) {
           exerciseId: s.exercise_id,
           setNumber: s.set_number,
           weightKg: s.weight_kg !== null ? parseFloat(String(s.weight_kg)) : null,
+          reps: s.reps ?? null,
           doneAt: s.done_at,
         });
       } finally {

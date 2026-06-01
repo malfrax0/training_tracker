@@ -33,7 +33,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
 
       const { rows: exercises } = await client.query(
         `SELECT id, session_id, name, description, nb_series, default_weight_kg,
-                rest_timer_seconds, sort_order
+                default_reps, rest_timer_seconds, sort_order, image_data
          FROM exercises WHERE session_id = ANY($1::uuid[])
          ORDER BY sort_order ASC`,
         [sessions.map((s: { id: string }) => s.id)]
@@ -74,7 +74,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
 
       const { rows: exercises } = await client.query(
         `SELECT id, session_id, name, description, nb_series, default_weight_kg,
-                rest_timer_seconds, sort_order
+                default_reps, rest_timer_seconds, sort_order, image_data
          FROM exercises WHERE session_id = $1 ORDER BY sort_order ASC`,
         [request.params.id]
       );
@@ -192,8 +192,10 @@ function mapExercise(row: {
   description: string | null;
   nb_series: number;
   default_weight_kg: number;
+  default_reps: number;
   rest_timer_seconds: number;
   sort_order: number;
+  image_data: string | null;
 }) {
   return {
     id: row.id,
@@ -202,7 +204,9 @@ function mapExercise(row: {
     description: row.description,
     nbSeries: row.nb_series,
     defaultWeightKg: parseFloat(String(row.default_weight_kg)),
+    defaultReps: row.default_reps ?? 8,
     restTimerSeconds: row.rest_timer_seconds,
     sortOrder: row.sort_order,
+    imageData: row.image_data,
   };
 }

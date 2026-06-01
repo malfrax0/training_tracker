@@ -1,3 +1,12 @@
+export const MIGRATION_V2 = `
+  ALTER TABLE exercises
+    ADD COLUMN IF NOT EXISTS default_reps INTEGER NOT NULL DEFAULT 8,
+    ADD COLUMN IF NOT EXISTS image_data TEXT;
+
+  ALTER TABLE workout_set_logs
+    ADD COLUMN IF NOT EXISTS reps INTEGER;
+`;
+
 export const INITIAL_MIGRATION = `
   CREATE TABLE IF NOT EXISTS users (
     id          VARCHAR(255) PRIMARY KEY,

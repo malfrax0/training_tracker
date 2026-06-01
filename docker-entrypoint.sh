@@ -19,4 +19,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -subj "/CN=${DOMAIN}" \
   -addext "subjectAltName=${SAN}"
 
+echo "Running database migrations..."
+node /app/backend/dist/migrations/migrate.js
+
 exec /usr/bin/supervisord -c /etc/supervisord.conf

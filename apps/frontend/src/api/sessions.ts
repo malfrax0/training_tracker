@@ -11,7 +11,9 @@ interface ExerciseBody {
   description?: string;
   nbSeries: number;
   defaultWeightKg: number;
+  defaultReps: number;
   restTimerSeconds: number;
+  imageData?: string;
 }
 
 export function useSessionsApi() {
@@ -46,6 +48,11 @@ export function useSessionsApi() {
       }),
     deleteExercise: (exerciseId: string) =>
       apiFetch<{ success: boolean }>(`/api/exercises/${exerciseId}`, { method: 'DELETE' }),
+    updateExerciseDefaults: (exerciseId: string, defaultWeightKg: number, defaultReps: number) =>
+      apiFetch<{ success: boolean }>(`/api/exercises/${exerciseId}/defaults`, {
+        method: 'PATCH',
+        body: JSON.stringify({ defaultWeightKg, defaultReps }),
+      }),
     reorderExercises: (sessionId: string, orderedIds: string[]) =>
       apiFetch<{ success: boolean }>(`/api/sessions/${sessionId}/exercises/reorder`, {
         method: 'PUT',

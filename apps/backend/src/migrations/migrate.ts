@@ -1,12 +1,13 @@
 import { Pool } from 'pg';
 import { env } from '../config/env';
-import { INITIAL_MIGRATION } from './schema';
+import { INITIAL_MIGRATION, MIGRATION_V2 } from './schema';
 
 async function migrate() {
   const pool = new Pool({ connectionString: env.DATABASE_URL });
   const client = await pool.connect();
   try {
     await client.query(INITIAL_MIGRATION);
+    await client.query(MIGRATION_V2);
     console.log('Migration completed successfully');
   } finally {
     client.release();

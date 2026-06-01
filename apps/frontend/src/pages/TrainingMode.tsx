@@ -31,7 +31,7 @@ export function TrainingMode() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const { state, currentExercise, startWorkout, completeSet, skipRest, stopWorkout } =
+  const { state, currentExercise, startWorkout, completeSet, addExtraSet, skipRest, stopWorkout } =
     useWorkout(session);
 
   useEffect(() => {
@@ -86,8 +86,39 @@ export function TrainingMode() {
     );
   }
 
+  const progress = state.totalSets > 0
+    ? Math.round((state.setsCompleted / state.totalSets) * 100)
+    : 0;
+
   const exerciseIndex = state.currentExerciseIndex;
-  const progress = (exerciseIndex / session.exercises.length) * 100;
+  const nextExercise = session.exercises[exerciseIndex + 1] ?? null;
+
+  const handleSetDone = async (weightKg: number, reps: number) => {
+    if (currentExercise) {
+      const weightChanged = weightKg !== currentExercise.defaultWeightKg;
+      const repsChanged = reps !== currentExercise.defaultReps;
+      if (weightChanged || repsChanged) {
+        try {
+          await api.updateExerciseDefaults(currentExercise.id, weightKg, reps);
+          setSession((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  exercises: prev.exercises.map((ex) =>
+                    ex.id === currentExercise.id
+                      ? { ...ex, defaultWeightKg: weightKg, defaultReps: reps }
+                      : ex
+                  ),
+                }
+              : prev
+          );
+        } catch {
+          // Non-critical — don't block the set log
+        }
+      }
+    }
+    await completeSet(weightKg, reps);
+  };
 
   return (
     <Box>
@@ -97,9 +128,14 @@ export function TrainingMode() {
             <ArrowBackIcon />
           </IconButton>
           <Box sx={{ flex: 1, mx: 1 }}>
-            <Typography variant="subtitle2" noWrap>
-              {session.name}
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <Typography variant="subtitle2" noWrap sx={{ flex: 1 }}>
+                {session.name}
+              </Typography>
+              <Typography variant="caption" color="primary" sx={{ ml: 1, fontWeight: 700, whiteSpace: 'nowrap' }} data-cy="progress-pct">
+                {progress}%
+              </Typography>
+            </Box>
             <LinearProgress
               variant="determinate"
               value={progress}
@@ -130,6 +166,8 @@ export function TrainingMode() {
             secondsLeft={state.restSecondsLeft}
             totalSeconds={currentExercise?.restTimerSeconds ?? 60}
             onSkip={skipRest}
+            onAddExtraSet={addExtraSet}
+            nextExercise={nextExercise}
           />
         ) : currentExercise ? (
           <Stack spacing={2} sx={{ px: 2 }}>
@@ -139,8 +177,8 @@ export function TrainingMode() {
             <ExerciseStep
               exercise={currentExercise}
               setNumber={state.currentSetNumber}
-              totalSets={currentExercise.nbSeries}
-              onSetDone={completeSet}
+              totalSets={state.currentExerciseTotalSets}
+              onSetDone={handleSetDone}
             />
           </Stack>
         ) : null}
