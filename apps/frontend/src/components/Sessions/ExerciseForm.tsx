@@ -146,7 +146,7 @@ export function ExerciseForm({ initial, onSave, onCancel }: Props) {
               src={values.imageData}
               alt="Exercise preview"
               data-cy="image-preview"
-              sx={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 2, display: 'block' }}
+              sx={{ maxWidth: '100%', height: 'auto', borderRadius: 2, display: 'block', mx: 'auto' }}
             />
             <IconButton
               size="small"

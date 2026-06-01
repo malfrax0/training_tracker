@@ -38,7 +38,7 @@ export function ExerciseStep({ exercise, setNumber, totalSets, onSetDone }: Prop
             src={exercise.imageData}
             alt={exercise.name}
             data-cy="exercise-image"
-            sx={{ width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 2, mb: 1.5, display: 'block' }}
+            sx={{ maxWidth: '100%', height: 'auto', borderRadius: 2, mb: 1.5, display: 'block', mx: 'auto' }}
           />
         )}
         <Typography variant="h5" fontWeight={700} gutterBottom>

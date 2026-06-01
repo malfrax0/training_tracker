@@ -150,7 +150,7 @@ export function SetTimer({ secondsLeft, totalSeconds, onSkip, onAddExtraSet, nex
               component="img"
               src={nextExercise.imageData}
               alt={nextExercise.name}
-              sx={{ width: '100%', maxHeight: 120, objectFit: 'cover', borderRadius: 2, mb: 1, display: 'block' }}
+              sx={{ maxWidth: '100%', height: 'auto', borderRadius: 2, mb: 1, display: 'block', mx: 'auto' }}
             />
           )}
           <Typography variant="subtitle1" fontWeight={700}>
