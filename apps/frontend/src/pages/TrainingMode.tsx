@@ -91,7 +91,7 @@ export function TrainingMode() {
     : 0;
 
   const exerciseIndex = state.currentExerciseIndex;
-  const nextExercise = session.exercises[exerciseIndex + 1] ?? null;
+  const nextExercise = session.exercises[exerciseIndex];
 
   const handleSetDone = async (weightKg: number, reps: number) => {
     if (currentExercise) {

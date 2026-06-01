@@ -31,6 +31,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       SSL_DOMAIN: ${SSL_DOMAIN:-localhost}
       NODE_ENV: production
+      DOMAIN: ${DOMAIN:-localhost}
       PORT: 3000
     depends_on:
       postgres:

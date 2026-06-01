@@ -126,7 +126,7 @@ export function SetTimer({ secondsLeft, totalSeconds, onSkip, onAddExtraSet, nex
         >
           Skip rest
         </Button>
-        <Button
+        {/* <Button
           variant="outlined"
           startIcon={<AddIcon />}
           onClick={onAddExtraSet}
@@ -134,7 +134,7 @@ export function SetTimer({ secondsLeft, totalSeconds, onSkip, onAddExtraSet, nex
           data-cy="add-extra-set-btn"
         >
           One more set
-        </Button>
+        </Button> */}
       </Box>
 
       {nextExercise && (
