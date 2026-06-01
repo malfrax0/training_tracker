@@ -84,7 +84,7 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
             defaultReps ?? 8,
             restTimerSeconds,
             nextOrder,
-            imageData ?? null,
+            imageData && imageData.trim() !== '' ? imageData : null,
           ]
         );
         return reply.status(201).send(mapExercise(rows[0]));
@@ -120,7 +120,7 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
             defaultReps ?? 8,
             restTimerSeconds,
             sortOrder ?? null,
-            imageData ?? null,
+            imageData && imageData.trim() !== '' ? imageData : null,
             request.params.id,
             request.user.sub,
           ]
