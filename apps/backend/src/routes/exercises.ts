@@ -100,6 +100,9 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { name, description, nbSeries, defaultWeightKg, defaultReps, restTimerSeconds, sortOrder, imageData } =
         request.body;
+      if (defaultReps !== undefined && (!Number.isInteger(defaultReps) || defaultReps < 0)) {
+        return reply.status(400).send({ error: 'Invalid defaultReps' });
+      }
       const client = await fastify.pg.connect();
       try {
         const { rowCount } = await client.query(
