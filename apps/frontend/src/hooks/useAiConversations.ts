@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { AiConversation, AiMessage, AiRound, ProposedChange } from '../types/ai';
 
 const MAX_CONVERSATIONS = 20;
-const MAX_MESSAGES_PER_CONVERSATION = 40;
 
 function storageKey(sessionId: string) {
   return `tt.aiConversations.${sessionId}`;
