@@ -70,6 +70,9 @@ describe('Training Mode', () => {
       .find('[data-cy="start-training-btn"]')
       .click();
 
+    cy.url({ timeout: 10000 }).should('include', '/equipment');
+    cy.get('[data-cy="equipment-start-training-btn"]').click();
+
     cy.url({ timeout: 10000 }).should('include', '/train');
   });
 
@@ -97,23 +100,31 @@ describe('Training Mode', () => {
   it('can skip the rest timer', () => {
     cy.get('[data-cy="set-done-btn"]').click();
 
+    // This session has a single exercise with a single set, so this rest
+    // period is the final one — skipping it completes the workout.
     cy.get('body').then(($body) => {
       if ($body.find('[data-cy="rest-timer"]').length) {
         cy.get('[data-cy="skip-rest-btn"]').click();
         cy.get('[data-cy="rest-timer"]').should('not.exist');
-        cy.get('[data-cy="set-done-btn"]').should('be.visible');
+        cy.get('[data-cy="workout-done"]', { timeout: 10000 }).should('be.visible');
       }
     });
   });
 
   it('shows Workout Done after completing all sets', () => {
     cy.get('[data-cy="set-done-btn"]').click();
+    // The single exercise's own rest period now plays before finishing.
+    cy.get('[data-cy="rest-timer"]', { timeout: 8000 }).should('be.visible');
+    cy.get('[data-cy="skip-rest-btn"]').click();
     cy.get('[data-cy="workout-done"]', { timeout: 10000 }).should('be.visible');
     cy.contains(/Workout Done/i).should('be.visible');
   });
 
   it('can stop a workout early via the Stop button', () => {
     cy.contains('button', 'Stop').click();
+    // Stopping now requires confirmation since a workout is in progress.
+    cy.get('[data-cy="confirm-dialog"]').should('be.visible');
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
     cy.get('[data-cy="workout-done"]', { timeout: 10000 }).should('be.visible');
   });
 });

@@ -15,6 +15,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import StopIcon from '@mui/icons-material/Stop';
 import { useSessionsApi } from '../api/sessions';
 import { useWorkout } from '../hooks/useWorkout';
+import { useTrainingGuard } from '../contexts/TrainingGuardContext';
 import { Session } from '../types';
 import { ExerciseStep } from '../components/Training/ExerciseStep';
 import { SetTimer } from '../components/Training/SetTimer';
@@ -33,6 +34,11 @@ export function TrainingMode() {
 
   const { state, currentExercise, startWorkout, completeSet, addExtraSet, skipRest, stopWorkout } =
     useWorkout(session);
+  const { setActive, guardedAction } = useTrainingGuard();
+
+  useEffect(() => {
+    setActive(!!state.workoutId && !state.isFinished);
+  }, [state.workoutId, state.isFinished, setActive]);
 
   useEffect(() => {
     if (!sessionId) {
@@ -91,7 +97,7 @@ export function TrainingMode() {
     : 0;
 
   const exerciseIndex = state.currentExerciseIndex;
-  const nextExercise = session.exercises[exerciseIndex];
+  const nextExercise = state.pendingFinish ? null : session.exercises[exerciseIndex + 1] ?? null;
 
   const handleSetDone = async (weightKg: number, reps: number) => {
     if (currentExercise) {
@@ -124,7 +130,7 @@ export function TrainingMode() {
     <Box>
       <AppBar position="sticky" color="transparent" elevation={0} sx={{ bgcolor: 'background.default', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <Toolbar>
-          <IconButton edge="start" onClick={() => navigate(-1)}>
+          <IconButton edge="start" data-cy="training-back-btn" onClick={() => guardedAction(() => navigate('/sessions'))}>
             <ArrowBackIcon />
           </IconButton>
           <Box sx={{ flex: 1, mx: 1 }}>
@@ -147,7 +153,8 @@ export function TrainingMode() {
             startIcon={<StopIcon />}
             color="error"
             size="small"
-            onClick={stopWorkout}
+            data-cy="stop-workout-btn"
+            onClick={() => guardedAction(stopWorkout)}
           >
             Stop
           </Button>
@@ -164,7 +171,7 @@ export function TrainingMode() {
         {state.isResting ? (
           <SetTimer
             secondsLeft={state.restSecondsLeft}
-            totalSeconds={currentExercise?.restTimerSeconds ?? 60}
+            totalSeconds={state.restTotalSeconds}
             onSkip={skipRest}
             onAddExtraSet={addExtraSet}
             nextExercise={nextExercise}

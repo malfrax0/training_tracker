@@ -7,6 +7,19 @@ export const MIGRATION_V2 = `
     ADD COLUMN IF NOT EXISTS reps INTEGER;
 `;
 
+// Values: 'none' | 'one_dumbbell' | 'two_dumbbell' | 'bar'
+export const MIGRATION_V3 = `
+  ALTER TABLE exercises
+    ADD COLUMN IF NOT EXISTS dumbbell_type VARCHAR(20) NOT NULL DEFAULT 'none';
+`;
+
+// One-time backfill for rows that pre-date the dumbbell_type column: exercises
+// that already had a positive default weight are assumed to use 1 dumbbell.
+export const MIGRATION_V3_BACKFILL = `
+  UPDATE exercises SET dumbbell_type = 'one_dumbbell'
+  WHERE dumbbell_type = 'none' AND default_weight_kg > 0;
+`;
+
 export const INITIAL_MIGRATION = `
   CREATE TABLE IF NOT EXISTS users (
     id          VARCHAR(255) PRIMARY KEY,

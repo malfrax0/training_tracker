@@ -12,7 +12,7 @@
     "docker:logs": "docker-compose logs -f",
     "docker:down:volumes": "docker-compose down -v",
     "e2e:open": "pnpm --filter e2e open",
-    "e2e:run": "pnpm --filter e2e run"
+    "e2e:run": "pnpm --filter e2e run run"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

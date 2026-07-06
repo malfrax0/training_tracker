@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import type { PoolClient } from 'pg';
 
+type DumbbellType = 'none' | 'one_dumbbell' | 'two_dumbbell' | 'bar';
+
 interface ExerciseParams {
   sessionId?: string;
   id?: string;
@@ -13,6 +15,7 @@ interface ExerciseBody {
   defaultWeightKg: number;
   defaultReps: number;
   restTimerSeconds: number;
+  dumbbellType: DumbbellType;
   imageData?: string;
   sortOrder?: number;
 }
@@ -40,7 +43,7 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
 
         const { rows } = await client.query(
           `SELECT id, session_id, name, description, nb_series, default_weight_kg,
-                  default_reps, rest_timer_seconds, sort_order, image_data
+                  default_reps, rest_timer_seconds, dumbbell_type, sort_order, image_data
            FROM exercises WHERE session_id = $1 ORDER BY sort_order ASC`,
           [request.params.sessionId]
         );
@@ -55,7 +58,7 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
     '/sessions/:sessionId/exercises',
     auth,
     async (request, reply) => {
-      const { name, description, nbSeries, defaultWeightKg, defaultReps, restTimerSeconds, sortOrder, imageData } =
+      const { name, description, nbSeries, defaultWeightKg, defaultReps, restTimerSeconds, dumbbellType, sortOrder, imageData } =
         request.body;
       if (defaultReps !== undefined && (!Number.isInteger(defaultReps) || defaultReps < 0)) {
         return reply.status(400).send({ error: 'Invalid defaultReps' });
@@ -72,9 +75,9 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
         const nextOrder = sortOrder ?? (maxRows[0].max_order as number) + 1;
 
         const { rows } = await client.query(
-          `INSERT INTO exercises (session_id, name, description, nb_series, default_weight_kg, default_reps, rest_timer_seconds, sort_order, image_data)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-           RETURNING id, session_id, name, description, nb_series, default_weight_kg, default_reps, rest_timer_seconds, sort_order, image_data`,
+          `INSERT INTO exercises (session_id, name, description, nb_series, default_weight_kg, default_reps, rest_timer_seconds, dumbbell_type, sort_order, image_data)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING id, session_id, name, description, nb_series, default_weight_kg, default_reps, rest_timer_seconds, dumbbell_type, sort_order, image_data`,
           [
             request.params.sessionId,
             name,
@@ -83,6 +86,7 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
             defaultWeightKg,
             defaultReps ?? 8,
             restTimerSeconds,
+            dumbbellType ?? 'none',
             nextOrder,
             imageData && imageData.trim() !== '' ? imageData : null,
           ]
@@ -98,7 +102,7 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
     '/exercises/:id',
     auth,
     async (request, reply) => {
-      const { name, description, nbSeries, defaultWeightKg, defaultReps, restTimerSeconds, sortOrder, imageData } =
+      const { name, description, nbSeries, defaultWeightKg, defaultReps, restTimerSeconds, dumbbellType, sortOrder, imageData } =
         request.body;
       if (defaultReps !== undefined && (!Number.isInteger(defaultReps) || defaultReps < 0)) {
         return reply.status(400).send({ error: 'Invalid defaultReps' });
@@ -108,10 +112,10 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
         const { rowCount } = await client.query(
           `UPDATE exercises e
            SET name = $1, description = $2, nb_series = $3, default_weight_kg = $4,
-               default_reps = $5, rest_timer_seconds = $6,
-               sort_order = COALESCE($7, e.sort_order), image_data = $8
+               default_reps = $5, rest_timer_seconds = $6, dumbbell_type = $7,
+               sort_order = COALESCE($8, e.sort_order), image_data = $9
            FROM sessions s
-           WHERE e.id = $9 AND e.session_id = s.id AND s.user_id = $10`,
+           WHERE e.id = $10 AND e.session_id = s.id AND s.user_id = $11`,
           [
             name,
             description ?? null,
@@ -119,6 +123,7 @@ export async function exerciseRoutes(fastify: FastifyInstance) {
             defaultWeightKg,
             defaultReps ?? 8,
             restTimerSeconds,
+            dumbbellType ?? 'none',
             sortOrder ?? null,
             imageData && imageData.trim() !== '' ? imageData : null,
             request.params.id,
@@ -219,6 +224,7 @@ function mapExercise(row: {
   default_weight_kg: number;
   default_reps: number;
   rest_timer_seconds: number;
+  dumbbell_type: DumbbellType;
   sort_order: number;
   image_data: string | null;
 }) {
@@ -231,6 +237,7 @@ function mapExercise(row: {
     defaultWeightKg: parseFloat(String(row.default_weight_kg)),
     defaultReps: row.default_reps ?? 8,
     restTimerSeconds: row.rest_timer_seconds,
+    dumbbellType: row.dumbbell_type ?? 'none',
     sortOrder: row.sort_order,
     imageData: row.image_data,
   };

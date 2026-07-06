@@ -17,9 +17,19 @@ export interface Exercise {
   defaultWeightKg: number;
   defaultReps: number;
   restTimerSeconds: number;
+  dumbbellType: DumbbellType;
   sortOrder: number;
   imageData: string | null;
 }
+
+export type DumbbellType = 'none' | 'one_dumbbell' | 'two_dumbbell' | 'bar';
+
+export const DUMBBELL_TYPE_LABELS: Record<DumbbellType, string> = {
+  none: 'None',
+  one_dumbbell: '1 Dumbbell',
+  two_dumbbell: '2 Dumbbell',
+  bar: 'Bodybuilding bar',
+};
 
 export interface WorkoutLog {
   id: string;

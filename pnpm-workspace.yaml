@@ -1,2 +1,7 @@
 packages:
-  - 'apps/*'
+  - apps/*
+
+onlyBuiltDependencies:
+  - browser-tabs-lock
+  - cypress
+  - esbuild

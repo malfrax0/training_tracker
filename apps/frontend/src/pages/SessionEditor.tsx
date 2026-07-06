@@ -22,7 +22,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import { useSessionsApi } from '../api/sessions';
-import { Session, Exercise } from '../types';
+import { Session, Exercise, DumbbellType, DUMBBELL_TYPE_LABELS } from '../types';
 import { ExerciseForm } from '../components/Sessions/ExerciseForm';
 import { ScheduleDayPicker } from '../components/Sessions/ScheduleDayPicker';
 import { LoadingSpinner } from '../components/Common/LoadingSpinner';
@@ -87,6 +87,7 @@ export function SessionEditor() {
     defaultWeightKg: number;
     defaultReps: number;
     restTimerSeconds: number;
+    dumbbellType: DumbbellType;
     imageData: string;
   }) => {
     const sessionId = isNew ? session?.id : id!;
@@ -185,6 +186,7 @@ export function SessionEditor() {
                     )}
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                       {ex.nbSeries} sets · {ex.defaultWeightKg} kg · {ex.restTimerSeconds}s rest
+                      {ex.dumbbellType && ex.dumbbellType !== 'none' && ` · ${DUMBBELL_TYPE_LABELS[ex.dumbbellType]}`}
                     </Typography>
                   </CardContent>
                   <CardActions sx={{ pt: 0 }}>

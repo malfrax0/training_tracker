@@ -71,7 +71,7 @@ export function SessionCard({ session, onDelete }: Props) {
           data-cy="start-training-btn"
           onClick={(e) => {
             e.stopPropagation();
-            navigate('/train', { state: { sessionId: session.id } });
+            navigate(`/sessions/${session.id}/equipment`);
           }}
         >
           <PlayArrowIcon />

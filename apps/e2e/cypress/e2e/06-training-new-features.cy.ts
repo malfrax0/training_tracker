@@ -100,6 +100,9 @@ describe('Training Mode — New Features', () => {
       .find('[data-cy="start-training-btn"]')
       .click();
 
+    cy.url({ timeout: 10000 }).should('include', '/equipment');
+    cy.get('[data-cy="equipment-start-training-btn"]').click();
+
     cy.url({ timeout: 10000 }).should('include', '/train');
     // Wait until the first exercise step is visible
     cy.get('[data-cy="set-done-btn"]', { timeout: 12000 }).should('be.visible');

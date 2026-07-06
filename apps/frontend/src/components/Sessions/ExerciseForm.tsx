@@ -7,10 +7,13 @@ import {
   Slider,
   Stack,
   IconButton,
+  ToggleButton,
+  ToggleButtonGroup,
+  Alert,
 } from '@mui/material';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { Exercise } from '../../types';
+import { Exercise, DumbbellType, DUMBBELL_TYPE_LABELS } from '../../types';
 
 interface ExerciseFormValues {
   name: string;
@@ -19,6 +22,7 @@ interface ExerciseFormValues {
   defaultWeightKg: number;
   defaultReps: number;
   restTimerSeconds: number;
+  dumbbellType: DumbbellType;
   imageData: string;
 }
 
@@ -35,6 +39,7 @@ const defaults: ExerciseFormValues = {
   defaultWeightKg: 0,
   defaultReps: 8,
   restTimerSeconds: 60,
+  dumbbellType: 'none',
   imageData: '',
 };
 
@@ -69,6 +74,7 @@ export function ExerciseForm({ initial, onSave, onCancel }: Props) {
     defaultWeightKg: initial?.defaultWeightKg ?? defaults.defaultWeightKg,
     defaultReps: initial?.defaultReps ?? defaults.defaultReps,
     restTimerSeconds: initial?.restTimerSeconds ?? defaults.restTimerSeconds,
+    dumbbellType: initial?.dumbbellType ?? defaults.dumbbellType,
     imageData: initial?.imageData ?? defaults.imageData,
   });
   const [saving, setSaving] = useState(false);
@@ -224,6 +230,28 @@ export function ExerciseForm({ initial, onSave, onCancel }: Props) {
         inputProps={{ min: 0, step: 0.5 }}
         fullWidth
       />
+      <Box>
+        <Typography gutterBottom>Equipment</Typography>
+        <ToggleButtonGroup
+          value={values.dumbbellType}
+          exclusive
+          onChange={(_, v) => { if (v) set('dumbbellType', v as DumbbellType); }}
+          size="small"
+          fullWidth
+          data-cy="dumbbell-type-select"
+        >
+          {(Object.keys(DUMBBELL_TYPE_LABELS) as DumbbellType[]).map((type) => (
+            <ToggleButton key={type} value={type} data-cy={`dumbbell-type-${type}`}>
+              {DUMBBELL_TYPE_LABELS[type]}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+        {values.dumbbellType === 'two_dumbbell' && (
+          <Alert severity="info" sx={{ mt: 1 }} data-cy="two-dumbbell-hint">
+            The weight above is for one dumbbell — the app counts it twice (total lifted is double).
+          </Alert>
+        )}
+      </Box>
       <Box>
         <Typography gutterBottom>Default reps: {values.defaultReps}</Typography>
         <Slider

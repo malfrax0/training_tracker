@@ -1,5 +1,5 @@
 import { useApiClient } from './client';
-import { Session, Exercise } from '../types';
+import { Session, Exercise, DumbbellType } from '../types';
 
 interface SessionBody {
   name: string;
@@ -13,6 +13,7 @@ interface ExerciseBody {
   defaultWeightKg: number;
   defaultReps: number;
   restTimerSeconds: number;
+  dumbbellType: DumbbellType;
   imageData?: string;
 }
 

@@ -7,6 +7,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import PersonIcon from '@mui/icons-material/Person';
+import { useTrainingGuard } from '../../contexts/TrainingGuardContext';
 
 const NAV_ITEMS = [
   { label: 'Home', icon: <HomeIcon />, path: '/' },
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
 export function NavBar() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const { guardedAction } = useTrainingGuard();
 
   const activeIndex = NAV_ITEMS.findIndex((item) =>
     item.path === '/' ? pathname === '/' : pathname.startsWith(item.path)
@@ -26,7 +28,7 @@ export function NavBar() {
   return (
     <BottomNavigation
       value={activeIndex === -1 ? false : activeIndex}
-      onChange={(_, value: number) => navigate(NAV_ITEMS[value].path)}
+      onChange={(_, value: number) => guardedAction(() => navigate(NAV_ITEMS[value].path))}
     >
       {NAV_ITEMS.map((item) => (
         <BottomNavigationAction

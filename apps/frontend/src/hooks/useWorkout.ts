@@ -9,6 +9,8 @@ interface WorkoutState {
   currentExerciseTotalSets: number; // effective total (nbSeries + extra sets added)
   isResting: boolean;
   restSecondsLeft: number;
+  restTotalSeconds: number; // the rest duration of the exercise that was just completed
+  pendingFinish: boolean; // true when this is the rest after the very last set of the workout
   isFinished: boolean;
   setsCompleted: number;
   totalSets: number; // sum across all exercises + extras
@@ -22,6 +24,8 @@ const initialState: WorkoutState = {
   currentExerciseTotalSets: 0,
   isResting: false,
   restSecondsLeft: 0,
+  restTotalSeconds: 0,
+  pendingFinish: false,
   isFinished: false,
   setsCompleted: 0,
   totalSets: 0,
@@ -53,6 +57,28 @@ export function useWorkout(session: Session | null) {
     };
   }, [state.isResting]);
 
+  useEffect(() => {
+    if (state.isResting || !state.pendingFinish || !state.workoutId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await api.completeWorkout(state.workoutId!);
+        if (!cancelled) setState((prev) => ({ ...prev, pendingFinish: false, isFinished: true }));
+      } catch (err) {
+        if (!cancelled) {
+          setState((prev) => ({
+            ...prev,
+            pendingFinish: false,
+            error: err instanceof Error ? err.message : 'Failed to complete workout',
+          }));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.isResting, state.pendingFinish, state.workoutId]);
+
   const startWorkout = useCallback(async () => {
     if (!session) return;
     try {
@@ -83,8 +109,14 @@ export function useWorkout(session: Session | null) {
         const isLastExercise = state.currentExerciseIndex >= session.exercises.length - 1;
 
         if (isLastSet && isLastExercise) {
-          await api.completeWorkout(state.workoutId);
-          setState((prev) => ({ ...prev, isFinished: true, setsCompleted: prev.setsCompleted + 1 }));
+          setState((prev) => ({
+            ...prev,
+            isResting: true,
+            restSecondsLeft: currentExercise.restTimerSeconds,
+            restTotalSeconds: currentExercise.restTimerSeconds,
+            pendingFinish: true,
+            setsCompleted: prev.setsCompleted + 1,
+          }));
           return;
         }
 
@@ -97,6 +129,7 @@ export function useWorkout(session: Session | null) {
             currentExerciseTotalSets: session.exercises[nextIndex].nbSeries,
             isResting: true,
             restSecondsLeft: currentExercise.restTimerSeconds,
+            restTotalSeconds: currentExercise.restTimerSeconds,
             setsCompleted: prev.setsCompleted + 1,
           }));
         } else {
@@ -105,6 +138,7 @@ export function useWorkout(session: Session | null) {
             currentSetNumber: prev.currentSetNumber + 1,
             isResting: true,
             restSecondsLeft: currentExercise.restTimerSeconds,
+            restTotalSeconds: currentExercise.restTimerSeconds,
             setsCompleted: prev.setsCompleted + 1,
           }));
         }

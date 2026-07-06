@@ -56,7 +56,7 @@ export function Dashboard() {
                   <Button
                     variant="contained"
                     startIcon={<PlayArrowIcon />}
-                    onClick={() => navigate('/train', { state: { sessionId: session.id } })}
+                    onClick={() => navigate(`/sessions/${session.id}/equipment`)}
                     size="small"
                     data-cy="start-session"
                   >
@@ -140,7 +140,7 @@ export function Dashboard() {
             size="small"
             data-cy="start-other-session-btn"
             onClick={() => {
-              navigate('/train', { state: { sessionId: dialogSession!.id } });
+              navigate(`/sessions/${dialogSession!.id}/equipment`);
               setDialogSession(null);
             }}
           >
