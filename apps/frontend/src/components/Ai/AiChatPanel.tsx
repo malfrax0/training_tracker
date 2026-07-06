@@ -24,6 +24,7 @@ import { useAiConfig } from '../../hooks/useAiConfig';
 import { useAiConversations } from '../../hooks/useAiConversations';
 import { ChatMessageInput, RawToolCall, streamChatCompletion } from '../../api/aiClient';
 import { executeToolCall } from '../../api/aiTools';
+import { useExerciseImagesApi } from '../../api/exerciseImages';
 import { useSessionsApi } from '../../api/sessions';
 import { Session } from '../../types';
 import { AiMessage, AiRound, ProposedChange } from '../../types/ai';
@@ -33,6 +34,20 @@ import { ConfirmDialog } from '../Common/ConfirmDialog';
 import { SYSTEM_PROMPT } from './systemPrompt';
 
 const AUTO_APPROVE_STORAGE_KEY = 'tt.aiAutoApprove';
+// Caps how many times we automatically re-prompt the model in a row when a
+// round's tool call(s) resolved with nothing left pending for the user to act
+// on (e.g. every call errored immediately, like a JSON parse failure). Without
+// this cap, a model that keeps producing the same broken call would loop
+// forever with no user action to break out of it.
+const MAX_AUTO_CONTINUE_DEPTH = 3;
+
+// True once a round's tool calls have nothing left for the user to approve or
+// reject (i.e. every one already resolved to approved/rejected/error) — used
+// to decide whether we must tell the model about the outcome ourselves,
+// because in that case no approve/reject click will ever happen to trigger it.
+function isFullyResolved(toolCalls: ProposedChange[] | undefined): toolCalls is ProposedChange[] {
+  return Boolean(toolCalls?.length) && toolCalls!.every((tc) => tc.status !== 'pending');
+}
 
 function readAutoApprove(): boolean {
   try {
@@ -49,6 +64,20 @@ interface Props {
   onSessionChanged: () => Promise<void>;
 }
 
+function buildExerciseSnapshots(session: Session) {
+  return session.exercises.map((e) => ({
+    id: e.id,
+    name: e.name,
+    description: e.description,
+    nbSeries: e.nbSeries,
+    defaultWeightKg: e.defaultWeightKg,
+    defaultReps: e.defaultReps,
+    restTimerSeconds: e.restTimerSeconds,
+    dumbbellType: e.dumbbellType,
+    sortOrder: e.sortOrder,
+  }));
+}
+
 function buildSessionSnapshot(session: Session): string {
   return JSON.stringify(
     {
@@ -56,17 +85,7 @@ function buildSessionSnapshot(session: Session): string {
       name: session.name,
       description: session.description,
       schedule: session.schedule,
-      exercises: session.exercises.map((e) => ({
-        id: e.id,
-        name: e.name,
-        description: e.description,
-        nbSeries: e.nbSeries,
-        defaultWeightKg: e.defaultWeightKg,
-        defaultReps: e.defaultReps,
-        restTimerSeconds: e.restTimerSeconds,
-        dumbbellType: e.dumbbellType,
-        sortOrder: e.sortOrder,
-      })),
+      exercises: buildExerciseSnapshots(session),
     },
     null,
     2,
@@ -74,6 +93,7 @@ function buildSessionSnapshot(session: Session): string {
 }
 
 function toolResultContent(change: ProposedChange): string {
+  if (change.resultContent !== undefined) return change.resultContent;
   switch (change.status) {
     case 'approved':
       return 'The change was applied successfully.';
@@ -87,25 +107,134 @@ function toolResultContent(change: ProposedChange): string {
   }
 }
 
-function parseToolCalls(rawToolCalls: RawToolCall[]): ProposedChange[] {
-  return rawToolCalls.map((tc) => {
+/**
+ * Summarizes the outcome of an entire group of mutually-exclusive candidates
+ * (e.g. the 4 photo options from one `search_exercise_image` call) as a single
+ * tool result, matching the ONE tool call the model actually made. Without
+ * this, the model would need to see 4 separate `update_exercise` results for
+ * calls it never issued, which it can't reconcile with what it asked for.
+ */
+function summarizeGroupOutcome(children: ProposedChange[]): string {
+  const approved = children.find((c) => c.status === 'approved');
+  if (approved) {
+    return `The user reviewed the candidates and picked option ${approved.groupIndex} of ${approved.groupTotal}. It was applied successfully.`;
+  }
+  if (children.some((c) => c.status === 'pending')) {
+    return 'The user has not yet reviewed these candidates.';
+  }
+  const errored = children.find((c) => c.status === 'error');
+  if (errored) {
+    return `Applying the selected candidate failed: ${errored.errorMessage ?? 'unknown error'}`;
+  }
+  return 'The user rejected all candidates. Nothing was applied.';
+}
+
+/**
+ * Turns raw tool calls from the model into ProposedChange entries. Most tools
+ * map 1:1 to a single pending change. `search_exercise_image` is special: it is
+ * resolved right here (calling our backend's exercise-image-search proxy)
+ * rather than left for the user to approve/reject as-is, because there's
+ * nothing to "apply" about a search — instead its up-to-4 results are fanned
+ * out into that many sibling `update_exercise` proposals (all sharing a
+ * `groupId`), so the user can pick exactly one. This keeps the LLM's job
+ * simple (one tool call, one query) while our own code handles turning that
+ * into several candidate mutations.
+ */
+async function resolveToolCalls(
+  rawToolCalls: RawToolCall[],
+  session: Session,
+  searchExerciseImages: (query: string) => Promise<{ id: string; url: string; description: string }[]>,
+): Promise<ProposedChange[]> {
+  const resolved: ProposedChange[] = [];
+
+  for (const tc of rawToolCalls) {
+    let args: Record<string, unknown> = {};
     try {
-      return {
-        id: tc.id,
-        toolName: tc.function.name as ProposedChange['toolName'],
-        args: JSON.parse(tc.function.arguments || '{}'),
-        status: 'pending',
-      };
+      args = JSON.parse(tc.function.arguments || '{}');
     } catch {
-      return {
+      resolved.push({
         id: tc.id,
         toolName: tc.function.name as ProposedChange['toolName'],
         args: {},
         status: 'error',
         errorMessage: 'Failed to parse tool arguments',
-      };
+      });
+      continue;
     }
-  });
+
+    if (tc.function.name === 'get_exercises') {
+      resolved.push({
+        id: tc.id,
+        toolName: 'get_exercises',
+        args: {},
+        status: 'approved',
+        hidden: true,
+        resultContent: JSON.stringify(buildExerciseSnapshots(session), null, 2),
+      });
+      continue;
+    }
+
+    if (tc.function.name === 'search_exercise_image') {
+      const exerciseId = typeof args.exerciseId === 'string' ? args.exerciseId : undefined;
+      const query = typeof args.query === 'string' ? args.query.trim() : '';
+      const exercise = exerciseId ? session.exercises.find((e) => e.id === exerciseId) : undefined;
+
+      if (!exercise) {
+        resolved.push({
+          id: tc.id,
+          toolName: 'search_exercise_image',
+          args,
+          status: 'error',
+          errorMessage: 'exerciseId does not belong to the current session',
+        });
+        continue;
+      }
+      if (!query) {
+        resolved.push({ id: tc.id, toolName: 'search_exercise_image', args, status: 'error', errorMessage: 'query is required' });
+        continue;
+      }
+
+      try {
+        const images = await searchExerciseImages(query);
+        if (images.length === 0) {
+          resolved.push({
+            id: tc.id,
+            toolName: 'search_exercise_image',
+            args,
+            status: 'error',
+            errorMessage: `No images found for "${query}". You may retry with a broader or differently-worded query.`,
+          });
+          continue;
+        }
+        images.forEach((image, i) => {
+          resolved.push({
+            id: `${tc.id}_${i}`,
+            toolName: 'update_exercise',
+            args: { exerciseId, imageData: image.url },
+            status: 'pending',
+            groupId: tc.id,
+            groupIndex: i + 1,
+            groupTotal: images.length,
+            groupToolName: 'search_exercise_image',
+            groupArgs: args,
+          });
+        });
+      } catch (err) {
+        resolved.push({
+          id: tc.id,
+          toolName: 'search_exercise_image',
+          args,
+          status: 'error',
+          errorMessage: err instanceof Error ? err.message : 'Image search failed',
+        });
+      }
+      continue;
+    }
+
+    resolved.push({ id: tc.id, toolName: tc.function.name as ProposedChange['toolName'], args, status: 'pending' });
+  }
+
+  return resolved;
 }
 
 /**
@@ -117,6 +246,14 @@ function parseToolCalls(rawToolCalls: RawToolCall[]): ProposedChange[] {
  * emitted as its own assistant turn right after — never merged into the earlier
  * turn's content. Most OpenAI-compatible chat templates reject a tool result that
  * isn't immediately answered by an assistant message before the next user turn.
+ *
+ * Grouped candidates (multiple `update_exercise` ProposedChanges sharing a
+ * `groupId`, generated from a single `search_exercise_image` call) are
+ * collapsed back into the ONE tool call the model actually issued, with a
+ * single summarized result — otherwise the model would see several
+ * `update_exercise` calls/results for a tool it never called, can't reconcile
+ * that with its own request, and ends up re-issuing the search every follow-up
+ * turn instead of treating it as resolved.
  */
 function buildHistory(messages: AiMessage[]): ChatMessageInput[] {
   const history: ChatMessageInput[] = [];
@@ -128,11 +265,31 @@ function buildHistory(messages: AiMessage[]): ChatMessageInput[] {
     if (m.role !== 'assistant') continue;
 
     for (const round of m.rounds ?? []) {
-      const toolCalls: RawToolCall[] | undefined = round.toolCalls?.length
-        ? round.toolCalls.map((tc) => ({
-            id: tc.id,
+      const rawCalls = round.toolCalls ?? [];
+      const seenGroups = new Set<string>();
+      const entries: { id: string; name: string; args: Record<string, unknown>; resultContent: string }[] = [];
+
+      for (const tc of rawCalls) {
+        if (tc.groupId) {
+          if (seenGroups.has(tc.groupId)) continue;
+          seenGroups.add(tc.groupId);
+          const siblings = rawCalls.filter((c) => c.groupId === tc.groupId);
+          entries.push({
+            id: tc.groupId,
+            name: tc.groupToolName ?? tc.toolName,
+            args: tc.groupArgs ?? {},
+            resultContent: summarizeGroupOutcome(siblings),
+          });
+        } else {
+          entries.push({ id: tc.id, name: tc.toolName, args: tc.args, resultContent: toolResultContent(tc) });
+        }
+      }
+
+      const toolCalls: RawToolCall[] | undefined = entries.length
+        ? entries.map((e) => ({
+            id: e.id,
             type: 'function' as const,
-            function: { name: tc.toolName, arguments: JSON.stringify(tc.args) },
+            function: { name: e.name, arguments: JSON.stringify(e.args) },
           }))
         : undefined;
 
@@ -143,12 +300,12 @@ function buildHistory(messages: AiMessage[]): ChatMessageInput[] {
       });
 
       if (toolCalls) {
-        for (const tc of round.toolCalls ?? []) {
+        for (const e of entries) {
           history.push({
             role: 'tool',
-            tool_call_id: tc.id,
-            name: tc.toolName,
-            content: toolResultContent(tc),
+            tool_call_id: e.id,
+            name: e.name,
+            content: e.resultContent,
           });
         }
       }
@@ -159,6 +316,7 @@ function buildHistory(messages: AiMessage[]): ChatMessageInput[] {
 
 export function AiChatPanel({ open, onClose, session, onSessionChanged }: Props) {
   const { config, setToolsSupported, isConfigured } = useAiConfig();
+  const { searchExerciseImages } = useExerciseImagesApi();
   const {
     conversations,
     activeConversation,
@@ -218,12 +376,13 @@ export function AiChatPanel({ open, onClose, session, onSessionChanged }: Props)
     setInput('');
     setSendError(null);
 
-    appendMessage(conversationId, {
+    const userMessage: AiMessage = {
       id: crypto.randomUUID(),
       role: 'user',
       content: text,
       createdAt: new Date().toISOString(),
-    });
+    };
+    appendMessage(conversationId, userMessage);
 
     const history = buildHistory(baseMessages);
 
@@ -242,15 +401,21 @@ export function AiChatPanel({ open, onClose, session, onSessionChanged }: Props)
       });
       if (config.toolsSupported === null) setToolsSupported(toolsSupported);
 
-      const toolCalls = parseToolCalls(result.toolCalls);
+      const toolCalls = await resolveToolCalls(result.toolCalls, session, searchExerciseImages);
 
-      appendMessage(conversationId, {
+      const assistantMessage: AiMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
         content: result.content,
         rounds: [{ content: result.content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined }],
         createdAt: new Date().toISOString(),
-      });
+      };
+      appendMessage(conversationId, assistantMessage);
+
+      if (isFullyResolved(toolCalls)) {
+        await runFollowUp(conversationId, assistantMessage.id, [...baseMessages, userMessage, assistantMessage]);
+        return;
+      }
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Failed to reach the AI endpoint');
     } finally {
@@ -265,7 +430,12 @@ export function AiChatPanel({ open, onClose, session, onSessionChanged }: Props)
   // round on the same assistant message (rather than merged into the previous
   // round's content or a brand-new message), so buildHistory can place it, in
   // the API request, right after the tool results it is answering.
-  const runFollowUp = async (conversationId: string, messageId: string, messagesForHistory: AiMessage[]) => {
+  const runFollowUp = async (
+    conversationId: string,
+    messageId: string,
+    messagesForHistory: AiMessage[],
+    depth = 0,
+  ) => {
     const history = buildHistory(messagesForHistory);
     const messages: ChatMessageInput[] = [
       { role: 'system', content: SYSTEM_PROMPT },
@@ -282,12 +452,25 @@ export function AiChatPanel({ open, onClose, session, onSessionChanged }: Props)
       });
       if (config.toolsSupported === null) setToolsSupported(toolsSupported);
 
-      const newToolCalls = parseToolCalls(result.toolCalls);
+      const newToolCalls = await resolveToolCalls(result.toolCalls, session, searchExerciseImages);
+      const newRound: AiRound = { content: result.content, toolCalls: newToolCalls.length > 0 ? newToolCalls : undefined };
+      appendRound(conversationId, messageId, newRound);
 
-      appendRound(conversationId, messageId, {
-        content: result.content,
-        toolCalls: newToolCalls.length > 0 ? newToolCalls : undefined,
-      });
+      // Nothing pending means there's no approve/reject click left to trigger the
+      // next step (e.g. every tool call in this round errored immediately, such
+      // as a JSON parse failure) — the model must be told the outcome itself, or
+      // the conversation would just go silent. Depth-capped to avoid looping
+      // forever if the model keeps producing the same broken call.
+      if (isFullyResolved(newToolCalls)) {
+        if (depth + 1 >= MAX_AUTO_CONTINUE_DEPTH) {
+          setSendError('The AI kept failing to complete this action after several attempts. Try rephrasing your request.');
+          return;
+        }
+        const updatedMessages = messagesForHistory.map((m) =>
+          m.id === messageId ? { ...m, rounds: [...(m.rounds ?? []), newRound] } : m,
+        );
+        await runFollowUp(conversationId, messageId, updatedMessages, depth + 1);
+      }
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Failed to reach the AI endpoint');
     } finally {
@@ -323,8 +506,24 @@ export function AiChatPanel({ open, onClose, session, onSessionChanged }: Props)
     let updatedToolCalls: ProposedChange[];
     try {
       await executeToolCall(change.toolName, change.args, { session, api });
-      updatedToolCalls = round.toolCalls.map((tc) => (tc.id === change.id ? { ...tc, status: 'approved' as const } : tc));
+      // If this change is one of several GIF candidates from the same search
+      // (shares a groupId), only one can actually be applied — auto-reject the
+      // other pending siblings so the round resolves as a whole.
+      updatedToolCalls = round.toolCalls.map((tc) => {
+        if (tc.id === change.id) return { ...tc, status: 'approved' as const };
+        if (change.groupId && tc.groupId === change.groupId && tc.status === 'pending') {
+          return { ...tc, status: 'rejected' as const };
+        }
+        return tc;
+      });
       updateToolCallStatus(activeConversation.id, messageId, change.id, { status: 'approved' });
+      if (change.groupId) {
+        for (const tc of round.toolCalls) {
+          if (tc.id !== change.id && tc.groupId === change.groupId && tc.status === 'pending') {
+            updateToolCallStatus(activeConversation.id, messageId, tc.id, { status: 'rejected' });
+          }
+        }
+      }
       await onSessionChanged();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to apply change';
@@ -360,12 +559,21 @@ export function AiChatPanel({ open, onClose, session, onSessionChanged }: Props)
 
     let updatedToolCalls = round.toolCalls;
     let anyApplied = false;
+    // Only one candidate per GIF group can win — once a group is resolved,
+    // reject the remaining siblings instead of applying them too.
+    const resolvedGroups = new Set<string>();
     for (const change of pending) {
+      if (change.groupId && resolvedGroups.has(change.groupId)) {
+        updateToolCallStatus(activeConversation.id, messageId, change.id, { status: 'rejected' });
+        updatedToolCalls = updatedToolCalls.map((tc) => (tc.id === change.id ? { ...tc, status: 'rejected' as const } : tc));
+        continue;
+      }
       try {
         await executeToolCall(change.toolName, change.args, { session, api });
         updateToolCallStatus(activeConversation.id, messageId, change.id, { status: 'approved' });
         updatedToolCalls = updatedToolCalls.map((tc) => (tc.id === change.id ? { ...tc, status: 'approved' as const } : tc));
         anyApplied = true;
+        if (change.groupId) resolvedGroups.add(change.groupId);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to apply change';
         updateToolCallStatus(activeConversation.id, messageId, change.id, { status: 'error', errorMessage });
@@ -485,30 +693,51 @@ export function AiChatPanel({ open, onClose, session, onSessionChanged }: Props)
                     <ChatMessageBubble role={message.role} content={message.content} />
                   ) : (
                     (message.rounds ?? []).map((round, roundIndex) => {
-                      const pendingCount = round.toolCalls?.filter((tc) => tc.status === 'pending').length ?? 0;
+                      // Bulk "approve all" only makes sense for independent changes —
+                      // GIF candidates within a group are mutually exclusive, so they're
+                      // excluded from the count/action and must be picked individually.
+                      const bulkApprovable = round.toolCalls?.filter((tc) => tc.status === 'pending' && !tc.groupId) ?? [];
+                      // Hidden entries (e.g. auto-resolved get_exercises lookups) are not
+                      // a change for the user to review — they exist only so buildHistory
+                      // can answer the model's real tool call, never rendered as a card.
+                      const visibleToolCalls = round.toolCalls?.filter((tc) => !tc.hidden) ?? [];
                       return (
                         <Box key={roundIndex}>
                           <ChatMessageBubble role={message.role} content={round.content} />
-                          {round.toolCalls?.map((change) => (
-                            <ProposedChangeCard
-                              key={change.id}
-                              change={change}
-                              session={session}
-                              onApprove={() => handleApprove(message.id, change)}
-                              onReject={() => handleReject(message.id, change)}
-                              disabled={sending}
-                            />
-                          ))}
-                          {pendingCount > 1 && (
+                          {visibleToolCalls.map((change, idx, arr) => {
+                            const isFirstInGroup = Boolean(
+                              change.groupId && arr.findIndex((c) => c.groupId === change.groupId) === idx,
+                            );
+                            const exerciseName = change.groupId
+                              ? session.exercises.find((e) => e.id === change.args.exerciseId)?.name
+                              : undefined;
+                            return (
+                              <Box key={change.id}>
+                                {isFirstInGroup && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                                    Choose a photo{exerciseName ? ` for "${exerciseName}"` : ''}:
+                                  </Typography>
+                                )}
+                                <ProposedChangeCard
+                                  change={change}
+                                  session={session}
+                                  onApprove={() => handleApprove(message.id, change)}
+                                  onReject={() => handleReject(message.id, change)}
+                                  disabled={sending}
+                                />
+                              </Box>
+                            );
+                          })}
+                          {bulkApprovable.length > 1 && (
                             <Button
                               size="small"
                               variant="text"
                               sx={{ mt: 0.5 }}
                               disabled={sending}
-                              onClick={() => approveAllPending(message.id, round)}
+                              onClick={() => approveAllPending(message.id, { ...round, toolCalls: bulkApprovable })}
                               data-cy="ai-approve-all-btn"
                             >
-                              Approve all ({pendingCount})
+                              Approve all ({bulkApprovable.length})
                             </Button>
                           )}
                         </Box>

@@ -17,6 +17,8 @@ const TOOL_LABELS: Record<AiToolName, string> = {
   update_exercise: 'Update exercise',
   delete_exercise: 'Delete exercise',
   reorder_exercises: 'Reorder exercises',
+  search_exercise_image: 'Search exercise image',
+  get_exercises: 'Get exercises',
 };
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -65,6 +67,8 @@ const STATUS_CHIP: Record<ProposedChange['status'], { label: string; color: 'def
 
 export function ProposedChangeCard({ change, session, onApprove, onReject, disabled }: Props) {
   const chip = STATUS_CHIP[change.status];
+  const isImageCandidate = Boolean(change.groupId);
+  const imageUrl = isImageCandidate && typeof change.args.imageData === 'string' ? change.args.imageData : undefined;
 
   return (
     <Paper
@@ -75,14 +79,28 @@ export function ProposedChangeCard({ change, session, onApprove, onReject, disab
     >
       <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
         <Typography variant="subtitle2" fontWeight={600}>
-          {TOOL_LABELS[change.toolName] ?? change.toolName}
+          {isImageCandidate && change.groupTotal
+            ? `Image option ${change.groupIndex} of ${change.groupTotal}`
+            : (TOOL_LABELS[change.toolName] ?? change.toolName)}
         </Typography>
         <Chip size="small" label={chip.label} color={chip.color} data-cy="ai-proposed-change-status" />
       </Stack>
 
-      <Typography variant="body2" sx={{ mt: 0.5, wordBreak: 'break-word' }}>
-        {describeChange(change, session)}
-      </Typography>
+      {imageUrl && (
+        <Box
+          component="img"
+          src={imageUrl}
+          alt="Exercise photo preview"
+          data-cy="ai-image-candidate-preview"
+          sx={{ display: 'block', mt: 1, maxWidth: '100%', maxHeight: 160, borderRadius: 1, mx: 'auto' }}
+        />
+      )}
+
+      {!isImageCandidate && (
+        <Typography variant="body2" sx={{ mt: 0.5, wordBreak: 'break-word' }}>
+          {describeChange(change, session)}
+        </Typography>
+      )}
 
       {change.status === 'error' && change.errorMessage && (
         <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.5 }}>
@@ -93,10 +111,10 @@ export function ProposedChangeCard({ change, session, onApprove, onReject, disab
       {change.status === 'pending' && (
         <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
           <Button size="small" variant="contained" onClick={onApprove} disabled={disabled} data-cy="ai-approve-change-btn">
-            Approve
+            {isImageCandidate ? 'Use this photo' : 'Approve'}
           </Button>
           <Button size="small" variant="outlined" onClick={onReject} disabled={disabled} data-cy="ai-reject-change-btn">
-            Reject
+            {isImageCandidate ? 'Not this one' : 'Reject'}
           </Button>
         </Box>
       )}

@@ -21,7 +21,9 @@ export type AiToolName =
   | 'add_exercise'
   | 'update_exercise'
   | 'delete_exercise'
-  | 'reorder_exercises';
+  | 'reorder_exercises'
+  | 'search_exercise_image'
+  | 'get_exercises';
 
 export type ProposedChangeStatus = 'pending' | 'approved' | 'rejected' | 'error';
 
@@ -31,6 +33,44 @@ export interface ProposedChange {
   args: Record<string, unknown>;
   status: ProposedChangeStatus;
   errorMessage?: string;
+  /**
+   * Present when this change is one of several mutually-exclusive candidates
+   * generated from a single `search_exercise_image` tool call (one per photo
+   * result). Approving one pending change that shares a `groupId` should
+   * auto-reject the other pending siblings with the same id, since only one
+   * photo can end up applied.
+   */
+  groupId?: string;
+  /** 1-based position of this candidate within its group, for display (e.g. "Option 2 of 4"). */
+  groupIndex?: number;
+  /** Total number of candidates in this group, for display. */
+  groupTotal?: number;
+  /**
+   * The name of the tool the model actually called to produce this group (e.g.
+   * `search_exercise_image`) — NOT `toolName` above, which for a group member
+   * is the synthetic `update_exercise` used to apply that one candidate.
+   * Needed so the API history can be reconstructed showing the model's real
+   * tool call (and a single summarized result) instead of several calls it
+   * never made — otherwise the model never sees its actual call answered and
+   * will just call it again, looping.
+   */
+  groupToolName?: AiToolName;
+  /** The original arguments the model passed to `groupToolName`, for history reconstruction. */
+  groupArgs?: Record<string, unknown>;
+  /**
+   * Overrides the generic status-based text from `toolResultContent()` when
+   * reconstructing history — used for read-only, auto-resolved informational
+   * tool calls (e.g. `get_exercises`) whose "result" IS this data, not a
+   * generic applied/rejected/error status.
+   */
+  resultContent?: string;
+  /**
+   * When true, this entry is never rendered as a ProposedChangeCard (it's not
+   * a change the user needs to review — e.g. a read-only `get_exercises` call
+   * that already auto-resolved). It still participates in `buildHistory` so
+   * the model's real tool call is answered.
+   */
+  hidden?: boolean;
 }
 
 export interface AiMessage {

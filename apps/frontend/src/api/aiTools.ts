@@ -108,6 +108,49 @@ export const AI_TOOL_SCHEMAS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'search_exercise_image',
+      description:
+        'Search a fitness website for a photo demonstrating an exercise. Presents up to 4 candidate photos to the ' +
+        "user, who picks the one they like (or none) — you never choose which result is used, and you don't need " +
+        'to call this again for the same exercise unless the user asks for different results. Only works for an ' +
+        'exercise that already exists in the current session snapshot (has a real exerciseId); if you just proposed ' +
+        'adding a new exercise, wait until the user approves it and it appears in a later snapshot before searching ' +
+        'for its photo.',
+      parameters: {
+        type: 'object',
+        properties: {
+          exerciseId: {
+            type: 'string',
+            description: 'id of an existing exercise from the current session snapshot to attach the chosen photo to',
+          },
+          query: {
+            type: 'string',
+            description: 'Search terms describing the movement, e.g. "dumbbell bicep curl" or "barbell squat"',
+          },
+        },
+        required: ['exerciseId', 'query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_exercises',
+      description:
+        'Get the full, up-to-date list of exercises in the current session (id, name, description, sets, weight, ' +
+        'reps, rest timer, equipment, order). This is a read-only lookup, not a change — it never needs approval. ' +
+        'The exercise list is already included in the session snapshot on every turn, so you usually do not need ' +
+        'this; call it only if you want to explicitly double-check current exercise data (e.g. exact ids) before ' +
+        'proposing a change, especially after several turns of conversation.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
 ] as const;
 
 const DUMBBELL_TYPES: DumbbellType[] = ['none', 'one_dumbbell', 'two_dumbbell', 'bar'];
