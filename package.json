@@ -8,6 +8,7 @@
     "lint": "pnpm -r lint",
     "db:migrate": "pnpm --filter backend db:migrate",
     "docker:up": "docker-compose up --build",
+    "docker:infra": "docker-compose up --build -d postgres",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "docker:down:volumes": "docker-compose down -v",

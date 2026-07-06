@@ -1,4 +1,9 @@
-import 'dotenv/config';
+import path from 'node:path';
+import dotenv from 'dotenv';
+
+// `pnpm dev` runs this with cwd = apps/backend, but the .env file lives at the
+// repo root, so resolve it relative to this file instead of relying on cwd.
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 
 function required(key: string): string {
   const value = process.env[key];

@@ -10,6 +10,8 @@ import {
   Divider,
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { AiSettingsForm } from '../components/Ai/AiSettingsForm';
+import { AI_DISABLED } from '../utils/aiFeature';
 
 export function Profile() {
   const { user, logout } = useAuth0();
@@ -39,6 +41,10 @@ export function Profile() {
           </Stack>
         </CardContent>
       </Card>
+
+      <Box sx={{ mb: 3 }}>
+        {!AI_DISABLED && <AiSettingsForm />}
+      </Box>
 
       <Divider sx={{ mb: 3 }} />
 

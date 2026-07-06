@@ -21,12 +21,15 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useSessionsApi } from '../api/sessions';
 import { Session, Exercise, DumbbellType, DUMBBELL_TYPE_LABELS } from '../types';
 import { ExerciseForm } from '../components/Sessions/ExerciseForm';
 import { ScheduleDayPicker } from '../components/Sessions/ScheduleDayPicker';
 import { LoadingSpinner } from '../components/Common/LoadingSpinner';
 import { ErrorAlert } from '../components/Common/ErrorAlert';
+import { AiChatPanel } from '../components/Ai/AiChatPanel';
+import { AI_DISABLED } from '../utils/aiFeature';
 
 export function SessionEditor() {
   const { id } = useParams<{ id: string }>();
@@ -45,6 +48,7 @@ export function SessionEditor() {
     open: false,
     editing: null,
   });
+  const [aiOpen, setAiOpen] = useState(false);
 
   useEffect(() => {
     if (isNew) return;
@@ -111,6 +115,16 @@ export function SessionEditor() {
     setSession(updated);
   };
 
+  const refreshSession = async () => {
+    const sessionId = isNew ? session?.id : id!;
+    if (!sessionId) return;
+    const updated = await api.getSession(sessionId);
+    setSession(updated);
+    setName(updated.name);
+    setDescription(updated.description ?? '');
+    setSchedule(updated.schedule);
+  };
+
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorAlert message={error} />;
 
@@ -124,8 +138,22 @@ export function SessionEditor() {
           <Typography variant="h6" sx={{ flex: 1, ml: 1 }}>
             {isNew ? 'New Session' : 'Edit Session'}
           </Typography>
+          {session && !AI_DISABLED && (
+            <IconButton onClick={() => setAiOpen(true)} data-cy="ai-assistant-btn">
+              <AutoAwesomeIcon />
+            </IconButton>
+          )}
         </Toolbar>
       </AppBar>
+
+      {session && !AI_DISABLED && (
+        <AiChatPanel
+          open={aiOpen}
+          onClose={() => setAiOpen(false)}
+          session={session}
+          onSessionChanged={refreshSession}
+        />
+      )}
 
       <Box sx={{ p: 2 }}>
         <Stack spacing={2}>
